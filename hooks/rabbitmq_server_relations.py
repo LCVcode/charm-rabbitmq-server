@@ -613,6 +613,7 @@ def update_nrpe_checks():
 
     rabbit.nrpe_update_queues_check(nrpe_compat, RABBIT_DIR)
     rabbit.nrpe_update_cluster_check(nrpe_compat, user, password)
+    rabbit.nrpe_update_deferred_restarts_check(nrpe_compat)
     nrpe_compat.write()
 
     rabbit.remove_nrpe_files()
@@ -681,6 +682,11 @@ def config_changed(check_deferred_restarts=True):
         'config-changed',
         check_deferred_restarts=check_deferred_restarts)
     if not allowed:
+        rabbit.sync_nrpe_files()
+        hostname, _, _, _, _ = rabbit.get_nrpe_credentials()
+        nrpe_compat = nrpe.NRPE(hostname=hostname)
+        rabbit.nrpe_update_deferred_restarts_check(nrpe_compat)
+        nrpe_compat.write()
         log(reason, "WARN")
         return
     # Update hosts with this unit's information

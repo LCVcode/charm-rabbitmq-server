@@ -1328,6 +1328,12 @@ def sync_nrpe_files():
     if config('management_plugin'):
         rsync(os.path.join(charm_dir(), 'files', 'check_rabbitmq_cluster.py'),
               os.path.join(NAGIOS_PLUGINS, 'check_rabbitmq_cluster.py'))
+    if not config('enable-auto-restarts'):
+        rsync(os.path.join(charm_dir(),
+                           'files',
+                           'check_rabbitmq_deferred_restarts.py'),
+              os.path.join(NAGIOS_PLUGINS,
+                           'check_rabbitmq_deferred_restarts.py'))
 
     if config('stats_cron_schedule'):
         rsync(os.path.join(charm_dir(), 'files', 'collect_rabbitmq_stats.sh'),
@@ -1360,6 +1366,12 @@ def remove_nrpe_files():
         # This script is redundant if the value `management_plugin` isn't
         # in the config
         remove_file(os.path.join(NAGIOS_PLUGINS, 'check_rabbitmq_cluster.py'))
+
+    if config('enable-auto-restarts'):
+        # This script is redundant if the value `enable-auto-restarts` isn't
+        # in the config
+        remove_file(os.path.join(NAGIOS_PLUGINS,
+                                 'check_rabbitmq_deferred_restarts.py'))
 
 
 def get_nrpe_credentials():
@@ -1579,6 +1591,31 @@ def nrpe_update_cluster_check(nrpe_compat, user, password):
             shortname=RABBIT_USER + '_cluster',
             description='Remove check RabbitMQ Cluster',
             check_cmd='{}/check_rabbitmq_cluster.py'.format(NAGIOS_PLUGINS))
+
+
+def nrpe_update_deferred_restarts_check(nrpe_compat):
+    """Add/Remove the RabbitMQ deferred service check
+
+    If the enable-auto-restarts is set to `False`, it will add the deferred
+    restarts check, otherwise it will remove it.
+
+    :param nrpe_compat: the NRPE class object
+    :type: nrpe.NRPE
+    """
+    shortname = RABBIT_USER + '_deferred_restarts'
+    cmd = '{}/check_rabbitmq_deferred_restarts.py'.format(NAGIOS_PLUGINS)
+    if not config('enable-auto-restarts'):
+        log('Adding rabbitmq deferred restart check', level=INFO)
+        nrpe_compat.add_check(
+            shortname=shortname,
+            description='Check for deferred service restarts',
+            check_cmd=cmd)
+    else:
+        log('Removing rabbitmq deferred restart check', level=INFO)
+        nrpe_compat.remove_check(
+            shortname=shortname,
+            description='Remove deferred service restarts check',
+            check_cmd=cmd)
 
 
 def _rabbitmq_version_newer_or_equal(version):

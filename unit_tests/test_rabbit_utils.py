@@ -1108,6 +1108,7 @@ class UtilsTests(CharmTestCase):
         self.test_config.set('stats_cron_schedule', '*/1 * * * *')
         self.test_config.set('cron-timeout', '300')
         self.test_config.unset('management_plugin')
+        self.test_config.set('enable-auto-restarts', False)
         rabbit_utils.NAGIOS_PLUGINS = self.tmp_dir
         rabbit_utils.SCRIPTS_DIR = self.tmp_dir
         rabbit_utils.STATS_CRONFILE = os.path.join(self.tmp_dir, 'cronfile')
@@ -1124,6 +1125,10 @@ class UtilsTests(CharmTestCase):
                                    'check_rabbitmq_queues.py'),
                       os.path.join(self.tmp_dir, 'check_rabbitmq_queues.py')),
             mock.call(os.path.join(self.tmp_dir, 'files',
+                                   'check_rabbitmq_deferred_restarts.py'),
+                      os.path.join(self.tmp_dir,
+                                   'check_rabbitmq_deferred_restarts.py')),
+            mock.call(os.path.join(self.tmp_dir, 'files',
                                    'collect_rabbitmq_stats.sh'),
                       os.path.join(self.tmp_dir, 'collect_rabbitmq_stats.sh'))
         ])
@@ -1139,6 +1144,7 @@ class UtilsTests(CharmTestCase):
         """Testing remove the NRPE scripts and the cron file"""
         self.test_config.unset('stats_cron_schedule')
         self.test_config.unset('management_plugin')
+        self.test_config.set('enable-auto-restarts', True)
         rabbit_utils.NAGIOS_PLUGINS = self.tmp_dir
         rabbit_utils.SCRIPTS_DIR = self.tmp_dir
         rabbit_utils.STATS_CRONFILE = os.path.join(self.tmp_dir, 'cronfile')
@@ -1150,6 +1156,8 @@ class UtilsTests(CharmTestCase):
             mock.call(os.path.join(self.tmp_dir, 'collect_rabbitmq_stats.sh')),
             mock.call(os.path.join(self.tmp_dir, 'check_rabbitmq_queues.py')),
             mock.call(os.path.join(self.tmp_dir, 'check_rabbitmq_cluster.py')),
+            mock.call(os.path.join(self.tmp_dir,
+                      'check_rabbitmq_deferred_restarts.py')),
         ])
 
     @mock.patch('charmhelpers.contrib.charmsupport.nrpe.get_nagios_hostname')
@@ -1369,6 +1377,40 @@ class UtilsTests(CharmTestCase):
             shortname='rabbitmq_cluster',
             description='Remove check RabbitMQ Cluster',
             check_cmd='{}/check_rabbitmq_cluster.py'.format(self.tmp_dir))
+
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.config')
+    @mock.patch('rabbit_utils.config')
+    def test_nrpe_update_deferred_restarts_check(self,
+                                                 mock_config,
+                                                 mock_config2):
+        """Testing add and remove RabbitMQ cluster check"""
+        mock_config.side_effect = self.test_config
+        mock_config2.side_effect = self.test_config
+        rabbit_utils.NAGIOS_PLUGINS = self.tmp_dir
+
+        # call with enable-auto-restarts set to False
+        self.test_config.set('enable-auto-restarts', False)
+        rabbit_utils.nrpe_update_deferred_restarts_check(
+            nrpe_compat=self.nrpe_compat)
+        self.nrpe_compat.add_check.assert_called_with(
+            shortname='rabbitmq_deferred_restarts',
+            description='Check for deferred service restarts',
+            check_cmd='{}/check_rabbitmq_deferred_restarts.py'.format(
+                self.tmp_dir))
+        self.nrpe_compat.remove_check.assert_not_called()
+
+        self.nrpe_compat.reset_mock()
+
+        # call with enable-auto-restarts set to True
+        self.test_config.set('enable-auto-restarts', True)
+        rabbit_utils.nrpe_update_deferred_restarts_check(
+            nrpe_compat=self.nrpe_compat)
+        self.nrpe_compat.remove_check.assert_called_with(
+            shortname='rabbitmq_deferred_restarts',
+            description='Remove deferred service restarts check',
+            check_cmd='{}/check_rabbitmq_deferred_restarts.py'.format(
+                self.tmp_dir))
+        self.nrpe_compat.add_check.assert_not_called()
 
     @mock.patch('rabbit_utils.config')
     def test_get_max_stats_file_age(self, mock_config):

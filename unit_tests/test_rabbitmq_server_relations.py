@@ -417,12 +417,15 @@ class RelationUtil(CharmTestCase):
         mock_add_check.reset_mock()
         mock_remove_check.reset_mock()
         self.test_config.unset('stats_cron_schedule')
+        self.test_config.set('enable-auto-restarts', True)
         rabbitmq_server_relations.update_nrpe_checks()
         mock_remove_file.assert_has_calls([
             call(stats_confile),
             call('{}/collect_rabbitmq_stats.sh'.format(scripts_dir)),
             call('{}/check_rabbitmq_queues.py'.format(nagios_plugins)),
-            call('{}/check_rabbitmq_cluster.py'.format(nagios_plugins))])
+            call('{}/check_rabbitmq_cluster.py'.format(nagios_plugins)),
+            call('{}/check_rabbitmq_deferred_restarts.py'.format(
+                nagios_plugins))])
         mock_add_check.assert_has_calls([
             call(shortname=rabbit_utils.RABBIT_USER,
                  description='Check RabbitMQ {} {}'.format('bar-0',
@@ -441,4 +444,8 @@ class RelationUtil(CharmTestCase):
             call(shortname=rabbit_utils.RABBIT_USER + '_cluster',
                  description='Remove check RabbitMQ Cluster',
                  check_cmd='{}/check_rabbitmq_cluster.py'.format(
+                     nagios_plugins)),
+            call(shortname=rabbit_utils.RABBIT_USER + '_deferred_restarts',
+                 description='Remove deferred service restarts check',
+                 check_cmd='{}/check_rabbitmq_deferred_restarts.py'.format(
                      nagios_plugins))])
